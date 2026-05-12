@@ -341,19 +341,27 @@ def get_segment_heatmap(df: pd.DataFrame) -> go.Figure:
     return fig
 
 def get_elbow_chart(inertias: list, silhouettes: list) -> go.Figure:
+    from plotly.subplots import make_subplots
     k_range = list(range(2, 2 + len(inertias)))
     
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=k_range, y=inertias, name='Inertia', line=dict(color='blue'), yaxis='y1'))
-    fig.add_trace(go.Scatter(x=k_range, y=silhouettes, name='Silhouette', line=dict(color='green'), yaxis='y2'))
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
+    
+    fig.add_trace(
+        go.Scatter(x=k_range, y=inertias, name='Inertia', line=dict(color='#3498DB')),
+        secondary_y=False
+    )
+    fig.add_trace(
+        go.Scatter(x=k_range, y=silhouettes, name='Silhouette', line=dict(color='#2ECC71')),
+        secondary_y=True
+    )
     
     fig.update_layout(
         title="Elbow Method + Silhouette Score — Finding Optimal K",
         template='plotly_dark',
-        yaxis=dict(title='Inertia', titlefont=dict(color='blue'), tickfont=dict(color='blue')),
-        yaxis2=dict(title='Silhouette Score', titlefont=dict(color='green'), tickfont=dict(color='green'), anchor='x', overlaying='y', side='right'),
         xaxis=dict(title='Number of Clusters (K)'),
     )
+    fig.update_yaxes(title_text="Inertia", secondary_y=False)
+    fig.update_yaxes(title_text="Silhouette Score", secondary_y=True)
     fig.add_vline(x=5, line_dash="dash", line_color="white", annotation_text="Optimal K=5", annotation_position="top right")
     return fig
 
