@@ -8,6 +8,12 @@ dist/
 build/
 .eggs/
 
+# Generated model artifacts (auto-regenerated on deploy)
+models/*.pkl
+
+# Generated data (auto-regenerated on deploy)
+data/customers_segmented.csv
+
 # Virtual environments
 venv/
 env/

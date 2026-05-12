@@ -73,19 +73,48 @@ FEATURE_DISPLAY = {
     'engagement_score':       ('Engagement Score',        '.1f'),
 }
 
-# MODEL LOADING
-try:
-    kmeans = joblib.load("models/kmeans_model.pkl")
-    pca = joblib.load("models/pca_model.pkl")
-    scaler = joblib.load("models/scaler.pkl")
-    profiles = joblib.load("models/segment_profiles.pkl")
-except FileNotFoundError:
-    pass # Expected during initial definition or before running train_model.py
+# MODEL LOADING — lazy, with auto-bootstrap
+_models_cache = {}
+
+def _ensure_models():
+    """Lazily load models. If missing or incompatible, auto-generate data and retrain."""
+    if _models_cache.get('loaded'):
+        return
+    try:
+        _models_cache['kmeans'] = joblib.load("models/kmeans_model.pkl")
+        _models_cache['pca'] = joblib.load("models/pca_model.pkl")
+        _models_cache['scaler'] = joblib.load("models/scaler.pkl")
+        _models_cache['profiles'] = joblib.load("models/segment_profiles.pkl")
+        _models_cache['loaded'] = True
+    except Exception:
+        # Auto-bootstrap: generate data and train models
+        import subprocess, sys
+        if not os.path.exists("data/customers.csv"):
+            subprocess.run([sys.executable, "generate_data.py"], check=True)
+        subprocess.run([sys.executable, "train_model.py"], check=True)
+        _models_cache['kmeans'] = joblib.load("models/kmeans_model.pkl")
+        _models_cache['pca'] = joblib.load("models/pca_model.pkl")
+        _models_cache['scaler'] = joblib.load("models/scaler.pkl")
+        _models_cache['profiles'] = joblib.load("models/segment_profiles.pkl")
+        _models_cache['loaded'] = True
+
+def _get_kmeans():
+    _ensure_models()
+    return _models_cache['kmeans']
+
+def _get_pca():
+    _ensure_models()
+    return _models_cache['pca']
+
+def _get_scaler():
+    _ensure_models()
+    return _models_cache['scaler']
 
 # FUNCTIONS
 
 def load_segmented_data() -> pd.DataFrame:
-    """Loads pre-segmented customer data."""
+    """Loads pre-segmented customer data. Auto-bootstraps if missing."""
+    _ensure_models()  # ensures data + models exist
     try:
         df = pd.read_csv("data/customers_segmented.csv")
         if 'segment_name' not in df.columns and 'cluster' in df.columns:
@@ -116,15 +145,15 @@ def assign_segments(df_new: pd.DataFrame) -> pd.DataFrame:
     X = df[CLUSTER_FEATURES].copy()
     
     # Scale and predict
-    X_scaled = scaler.transform(X)
-    cluster_labels = kmeans.predict(X_scaled)
+    X_scaled = _get_scaler().transform(X)
+    cluster_labels = _get_kmeans().predict(X_scaled)
     
     # Add cluster and segment name
     df['cluster'] = cluster_labels
     df['segment_name'] = df['cluster'].map(SEGMENT_NAMES)
     
     # Add PCA coordinates
-    X_pca = pca.transform(X_scaled)
+    X_pca = _get_pca().transform(X_scaled)
     df['pca_x'] = X_pca[:, 0]
     df['pca_y'] = X_pca[:, 1]
     
@@ -169,7 +198,7 @@ def get_pca_scatter(df: pd.DataFrame, highlight_customer: str = None) -> go.Figu
     fig.update_traces(marker=dict(size=5))
     
     # Add centroids
-    centroids_pca = pca.transform(kmeans.cluster_centers_)
+    centroids_pca = _get_pca().transform(_get_kmeans().cluster_centers_)
     fig.add_trace(go.Scatter(
         x=centroids_pca[:, 0], y=centroids_pca[:, 1],
         mode='markers', marker=dict(size=20, symbol='star', color='white', line=dict(width=1, color='black')),
@@ -435,7 +464,7 @@ def get_kmeans_animation(df: pd.DataFrame) -> go.Figure:
 def get_centroid_distances_chart(new_scaled_data, predicted_cluster) -> go.Figure:
     """Calculates distance from new customer to all centroids."""
     from sklearn.metrics import pairwise_distances
-    distances = pairwise_distances(new_scaled_data, kmeans.cluster_centers_)[0]
+    distances = pairwise_distances(new_scaled_data, _get_kmeans().cluster_centers_)[0]
     
     dist_df = pd.DataFrame({
         'segment_name': [SEGMENT_NAMES[i] for i in range(5)],
@@ -454,7 +483,7 @@ def get_centroid_distances_chart(new_scaled_data, predicted_cluster) -> go.Figur
 def get_dbscan_scatter(df: pd.DataFrame) -> (go.Figure, int):
     """Runs DBSCAN to find noise/outliers and returns plot + noise count."""
     X = df[CLUSTER_FEATURES].copy()
-    X_scaled = scaler.transform(X)
+    X_scaled = _get_scaler().transform(X)
     
     db = DBSCAN(eps=0.8, min_samples=10)
     labels = db.fit_predict(X_scaled)

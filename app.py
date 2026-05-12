@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import joblib
 import plotly.graph_objects as go
 from segmentor import (
     CLUSTER_FEATURES, SEGMENT_NAMES, SEGMENT_COLORS, SEGMENT_EMOJIS, 
@@ -11,7 +10,8 @@ from segmentor import (
     get_feature_distribution_box, get_segment_heatmap, get_elbow_chart,
     get_silhouette_plot, get_segment_size_chart, get_category_preference_chart,
     get_clv_ranking, get_kmeans_animation, get_centroid_distances_chart,
-    get_dbscan_scatter, get_rfm_matrix
+    get_dbscan_scatter, get_rfm_matrix,
+    _get_pca, _get_scaler
 )
 
 # PAGE CONFIG
@@ -66,9 +66,7 @@ def get_data():
 @st.cache_resource
 def get_models():
     try:
-        pca = joblib.load("models/pca_model.pkl")
-        scaler = joblib.load("models/scaler.pkl")
-        return pca, scaler
+        return _get_pca(), _get_scaler()
     except:
         return None, None
     
