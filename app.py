@@ -90,9 +90,9 @@ def _ensure_models():
         _models_cache['scaler'] = joblib.load("models/scaler.pkl")
         _models_cache['profiles'] = joblib.load("models/segment_profiles.pkl")
         _models_cache['loaded'] = True
-    except Exception:
+    except Exception as e:
         import streamlit as st
-        st.error("Models not found. Please run the ML notebook to train models.")
+        st.error(f"Models not found or failed to load. Please run the ML notebook to train models. Error: {e}")
         st.stop()
 
 def _get_kmeans():
